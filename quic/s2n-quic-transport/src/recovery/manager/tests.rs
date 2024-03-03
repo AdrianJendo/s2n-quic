@@ -33,6 +33,8 @@ use s2n_quic_core::{
     varint::VarInt,
 };
 use std::{collections::HashSet, net::SocketAddr};
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 // alias the manager and paths over the config so we don't have to annotate it everywhere
 type ServerManager = super::Manager<ServerConfig>;
@@ -2834,6 +2836,9 @@ fn on_timeout() {
     // Loss timer is armed but not expired yet, nothing happens
     manager.loss_timer.set(now + Duration::from_secs(10));
     manager.on_timeout(now, random, u32::MAX, &mut context, &mut publisher);
+    assert_eq!(context.times_active_path.borrow().clone(), 1);
+    // assert_eq!(*context.times.borrow().get("active_path").unwrap(), 1);
+    assert!(context.expect_times_active_path(1));
     assert_eq!(context.on_packet_loss_count, 0);
     //= https://www.rfc-editor.org/rfc/rfc9002#section-6.2.1
     //= type=test
@@ -2863,6 +2868,10 @@ fn on_timeout() {
     // Loss timer is armed and expired, on_packet_loss is called
     manager.loss_timer.set(now - Duration::from_secs(1));
     manager.on_timeout(now, random, u32::MAX, &mut context, &mut publisher);
+    assert!(context.expect_times_active_path(3));
+    assert!(context.expect_times_handshake_confirmed(3));
+    // context.assert_times("is_handshake_confirmed", 3);
+    // context.assert_times("active_path", 3);
     assert_eq!(context.on_packet_loss_count, 1);
     //= https://www.rfc-editor.org/rfc/rfc9002#section-6.2.1
     //= type=test
@@ -2874,12 +2883,16 @@ fn on_timeout() {
     // Loss timer is not armed, pto timer is not armed
     manager.loss_timer.cancel();
     manager.on_timeout(now, random, u32::MAX, &mut context, &mut publisher);
+    // context.assert_times("active_path", 4);
+    assert!(context.expect_times_active_path(4));
     assert_eq!(expected_pto_backoff, context.path().pto_backoff);
 
     // Loss timer is not armed, pto timer is armed but not expired
     manager.loss_timer.cancel();
     manager.pto.update(now, Duration::from_secs(5));
     manager.on_timeout(now, random, u32::MAX, &mut context, &mut publisher);
+    // context.assert_times("active_path", 5);
+    assert!(context.expect_times_active_path(5));
     assert_eq!(expected_pto_backoff, context.path().pto_backoff);
 
     // Loss timer is not armed, pto timer is expired without bytes in flight
@@ -2888,6 +2901,8 @@ fn on_timeout() {
         .pto
         .update(now - Duration::from_secs(5), Duration::ZERO);
     manager.on_timeout(now, random, u32::MAX, &mut context, &mut publisher);
+    // context.assert_times("active_path", 8);
+    assert!(context.expect_times_active_path(8));
     assert_eq!(expected_pto_backoff, context.path().pto_backoff);
     assert_eq!(manager.pto.transmissions(), 1);
 
@@ -2915,6 +2930,8 @@ fn on_timeout() {
         .pto
         .update(now - Duration::from_secs(5), Duration::ZERO);
     manager.on_timeout(now, random, u32::MAX, &mut context, &mut publisher);
+    // context.assert_times("active_path", 11);
+    assert!(context.expect_times_active_path(11));
     assert_eq!(expected_pto_backoff, context.path().pto_backoff);
     assert!(manager.pto.is_armed());
 
@@ -3464,6 +3481,10 @@ struct MockContext<'a, Config: endpoint::Config> {
     lost_packets: HashSet<PacketNumber>,
     path_manager: &'a mut path::Manager<Config>,
     fail_validation: bool,
+    // times: RefCell<HashMap<String, u8>>,
+    times_active_path: RefCell<u8>,
+    times_active_path_mut: RefCell<u8>,
+    times_handshake_confirmed: RefCell<u8>,
 }
 
 impl<'a, Config: endpoint::Config> MockContext<'a, Config> {
@@ -3478,26 +3499,72 @@ impl<'a, Config: endpoint::Config> MockContext<'a, Config> {
             lost_packets: HashSet::default(),
             path_manager,
             fail_validation: false,
+            // times: RefCell::new(HashMap::new()),
+            times_active_path: RefCell::new(0),
+            times_active_path_mut: RefCell::new(0),
+            times_handshake_confirmed: RefCell::new(0),
         }
     }
 
     pub fn set_path_id(&mut self, path_id: path::Id) {
         self.path_id = path_id;
     }
+
+    // fn incr_times(&self, func: &str) {
+    //     let times = &mut *self.times.borrow_mut();
+    //     *times.entry(func.to_string()).or_default() += 1;
+    // }
+
+    // have a different function for each method
+    //  expect_times_ -> use predicate
+    pub fn expect_times_active_path(&self, times: u8) -> bool {
+       return self.times_active_path.borrow().clone() == times;
+    }
+
+    pub fn expect_times_active_path_mut(&self, times: u8) -> bool {
+        return self.times_active_path_mut.borrow().clone() == times;
+    }
+
+    pub fn expect_times_handshake_confirmed(&self, times: u8) -> bool {
+        return self.times_handshake_confirmed.borrow().clone() == times;
+    }
+
+    // return true / false
+    // pub fn times(&self, val: &str, times: u8) -> bool {
+    //    assert_eq!(*self.times.borrow().get(val).unwrap(), times);
+    //    if val == "active_path" {
+    //        return *self.times_active_path == times;
+    //    }
+    //
+    //    return false;
+    // }
 }
 
+// is_path_valid
+// ensure call order on method
+
+
+// #[macro]
 impl<'a, Config: endpoint::Config> recovery::Context<Config> for MockContext<'a, Config> {
     const ENDPOINT_TYPE: endpoint::Type = Config::ENDPOINT_TYPE;
 
     fn is_handshake_confirmed(&self) -> bool {
+        self.times_handshake_confirmed.replace_with(|&mut old| old + 1);
+        // self.incr_times("is_handshake_confirmed");
         true
     }
 
     fn active_path(&self) -> &path::Path<Config> {
+        self.times_active_path.replace_with(|&mut old| old + 1);
+        // self.incr_times("active_path");
+        // let times = &mut *self.times.borrow_mut();
+        // *times.entry("active_path".to_string()).or_default() += 1;
         self.path_manager.active_path()
     }
 
     fn active_path_mut(&mut self) -> &mut path::Path<Config> {
+        // self.incr_times("active_path_mut");
+        self.times_active_path_mut.replace_with(|&mut old| old + 1);
         self.path_manager.active_path_mut()
     }
 
