@@ -3471,6 +3471,7 @@ fn helper_generate_client_path_manager(
     path::Manager::new(path, registry)
 }
 
+// #[add_field
 struct MockContext<'a, Config: endpoint::Config> {
     validate_packet_ack_count: u8,
     on_new_packet_ack_count: u8,
