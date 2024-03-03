@@ -26,8 +26,6 @@ s2n-codec = { version = "=0.33.0", path = "../../common/s2n-codec", features = [
 s2n-quic-core = { version = "=0.33.0", path = "../s2n-quic-core", features = ["alloc"], default-features = false }
 siphasher = "1.0"
 smallvec = { version = "1", default-features = false }
-quote = "1.0.35"
-syn = "2.0.48"
 mock = { path = "../../mock" }
 
 [dev-dependencies]

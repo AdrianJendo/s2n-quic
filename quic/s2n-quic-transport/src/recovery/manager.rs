@@ -23,6 +23,7 @@ use smallvec::SmallVec;
 
 #[cfg(test)]
 mod tests;
+
 type PacketDetails<PacketInfo> = (PacketNumber, SentPacketInfo<PacketInfo>);
 
 #[derive(Debug)]

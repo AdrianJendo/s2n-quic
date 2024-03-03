@@ -34,7 +34,6 @@ use s2n_quic_core::{
 };
 use std::{collections::HashSet, net::SocketAddr};
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 // alias the manager and paths over the config so we don't have to annotate it everywhere
 type ServerManager = super::Manager<ServerConfig>;
@@ -3471,7 +3470,7 @@ fn helper_generate_client_path_manager(
     path::Manager::new(path, registry)
 }
 
-// #[add_field
+// #[add_field]
 struct MockContext<'a, Config: endpoint::Config> {
     validate_packet_ack_count: u8,
     on_new_packet_ack_count: u8,
