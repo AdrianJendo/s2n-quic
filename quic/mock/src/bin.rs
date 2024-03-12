@@ -1,8 +1,8 @@
 extern crate mock; // not needed since Rust edition 2018
 
-use mock::automock;
+use mock::seamock;
 
-#[automock]
+#[seamock]
 pub trait test {
     fn a(&self) -> bool;
     fn b(&self) -> u8;

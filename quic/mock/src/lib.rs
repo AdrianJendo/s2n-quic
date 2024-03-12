@@ -7,7 +7,7 @@ use syn::parse::Parser;
 
 
 #[proc_macro_attribute]
-pub fn automock(_args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
     // Parse the input trait
     let input = parse_macro_input!(input as ItemTrait);
     let trait_name = &input.ident;
