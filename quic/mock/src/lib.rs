@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::__private::Span;
 use quote::quote;
-use syn::{parse_macro_input, ItemTrait, TraitItem, Ident};
+use syn::{parse_macro_input, ItemTrait, TraitItem, Ident, parse_quote};
 
 #[proc_macro_attribute]
 pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
@@ -35,13 +35,18 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
 
     let impl_methods = input.items.iter().filter_map(|item| {
         if let TraitItem::Method(method) = item {
-            let method_name = &method.sig.ident;
+            let method_name = Ident::new(&format!("{}_with", &method.sig.ident), method.sig.ident.span());
             let method_output = &method.sig.output;
+            let ret_type: syn::Type = match &method.sig.output {
+                syn::ReturnType::Type(_, x) => *x.to_owned(),
+                syn::ReturnType::Default => parse_quote!{ () }
+            };
             let method_inputs = &method.sig.inputs;
-            let times_attr = Ident::new(&format!("times_{}", &method_name), method_name.span());
+            let times_attr = Ident::new(&format!("times_{}", &method.sig.ident), method.sig.ident.span());
             Some (quote! {
-                fn #method_name(#method_inputs) #method_output {
+                fn #method_name(#method_inputs, _w: #ret_type) #method_output {
                     self.#times_attr.replace_with(|&mut old| old + 1);
+                    _w
                 }
             })
         } else {
@@ -77,14 +82,13 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
                     self.#x.borrow().clone() == times
                 }
             )*
+            #(#impl_methods)*
         }
     };
 
     let original = &input.ident;
     let trait_impl = quote! {
-        impl #original for #mock_struct_name {
-            #(#impl_methods)*
-        }
+        impl #original for #mock_struct_name { }
     };
 
     // Combine the generated tokens
