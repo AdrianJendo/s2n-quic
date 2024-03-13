@@ -9,6 +9,7 @@ use syn::{parse_macro_input, ItemTrait, TraitItem, Ident};
 pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
     // Parse the input trait
     let input = parse_macro_input!(input as ItemTrait);
+
     let mock_struct_name = Ident::new(&format!("Mock{}", &input.ident), Span::call_site());
 
     // Get the trait methods
@@ -32,15 +33,21 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
     });
 
-    // let trait_methods = input.items.iter().filter_map(|item| {
-    //     if let TraitItem::Method(method) = item {
-    //         Some(
-    //             item
-    //         )
-    //     } else {
-    //         None
-    //     }
-    // });
+    let impl_methods = input.items.iter().filter_map(|item| {
+        if let TraitItem::Method(method) = item {
+            let method_name = &method.sig.ident;
+            let method_output = &method.sig.output;
+            let method_inputs = &method.sig.inputs;
+            let times_attr = Ident::new(&format!("times_{}", &method_name), method_name.span());
+            Some (quote! {
+                fn #method_name(#method_inputs) #method_output {
+                    self.#times_attr.replace_with(|&mut old| old + 1);
+                }
+            })
+        } else {
+            None
+        }
+    });
 
     let x = times_trait_attrs.clone();
 
@@ -73,16 +80,12 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
     };
 
-    // let original = &input.ident;
-    // let trait_impl = quote! {
-    //     impl #original for #mock_struct_name {
-    //         #(
-    //             fn #trait_methods(&self, times: u8) -> bool {
-    //                 self.#trait_methods.borrow().clone() == times
-    //             }
-    //         )*
-    //     }
-    // };
+    let original = &input.ident;
+    let trait_impl = quote! {
+        impl #original for #mock_struct_name {
+            #(#impl_methods)*
+        }
+    };
 
     // Combine the generated tokens
     let expanded = quote! {
@@ -90,6 +93,7 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         #input
         #mock_struct
         #mock_impl
+        #trait_impl
     };
 
     TokenStream::from(expanded)

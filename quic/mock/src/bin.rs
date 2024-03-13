@@ -4,7 +4,7 @@ use mock::seamock;
 
 #[seamock]
 pub trait Test {
-    fn a(&self) -> bool;
+    fn a(&self, z: bool) -> bool;
     fn b(&self) -> u8;
     fn c(&self) -> i32;
 }
