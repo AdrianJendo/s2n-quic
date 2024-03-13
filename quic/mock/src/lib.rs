@@ -1,19 +1,19 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use quote::__private::Span;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, ItemTrait, TraitItem, Ident};
 use syn::parse::Parser;
-
 
 #[proc_macro_attribute]
 pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
     // Parse the input trait
     let input = parse_macro_input!(input as ItemTrait);
-    let trait_name = &input.ident;
+    let trait_name = Ident::new(&format!("Mock{}", &input.ident), Span::call_site());
 
     // Get the trait methods
-    let trait_methods = input.items.iter().filter_map(|item| {
+    let trait_attrs = input.items.iter().filter_map(|item| {
         if let TraitItem::Method(method) = item {
             Some(
                 Ident::new(&format!("times_{}", &method.sig.ident), method.sig.ident.span()),
@@ -23,30 +23,50 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
     });
 
+    let trait_methods = input.items.iter().filter_map(|item| {
+        if let TraitItem::Method(method) = item {
+            Some(
+                Ident::new(&format!("expect_times_{}", &method.sig.ident), method.sig.ident.span()),
+            )
+        } else {
+            None
+        }
+    });
+
+    let x = trait_attrs.clone();
+
     // Generate the MockContext struct with RefCell fields for each method
     let mock_struct = quote! {
-        struct MockContext {
+        struct #trait_name {
             #(
-                #trait_methods: std::cell::RefCell<u8>,
+                #x: std::cell::RefCell<u8>,
             )*
         }
     };
 
-    // // Implement the trait for MockContext
-    // let trait_impl = quote! {
-    //     impl #trait_name for MockContext {
-    //         #(
-    //             fn #trait_methods(&self) -> u8 {
-    //                 self.#trait_methods.borrow().clone()
-    //             }
-    //         )*
-    //     }
-    // };
+    // Implement the trait for MockContext
+    let trait_impl = quote! {
+        impl #trait_name {
+            pub fn new() -> Self {
+                Self {
+                    #(
+                        #trait_attrs: RefCell::new(0),
+                    )*
+                }
+            }
+            #(
+                fn #trait_methods(&self, times: u8) -> bool {
+                    self.#trait_methods.borrow().clone() == times
+                }
+            )*
+        }
+    };
 
     // Combine the generated tokens
     let expanded = quote! {
+        use core::cell::RefCell;
         #mock_struct
-        // #trait_impl
+        #trait_impl
     };
 
     TokenStream::from(expanded)
