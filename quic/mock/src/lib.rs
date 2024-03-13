@@ -44,9 +44,9 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
             let method_inputs = &method.sig.inputs;
             let times_attr = Ident::new(&format!("times_{}", &method.sig.ident), method.sig.ident.span());
             Some (quote! {
-                fn #method_name(#method_inputs, _w: #ret_type) #method_output {
+                fn #method_name(#method_inputs, _r: #ret_type) #method_output {
                     self.#times_attr.replace_with(|&mut old| old + 1);
-                    _w
+                    _r
                 }
             })
         } else {
