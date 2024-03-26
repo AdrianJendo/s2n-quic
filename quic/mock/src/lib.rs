@@ -35,32 +35,6 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         generate_attr_names(method, &["times"])
     });
 
-    let returning = trait_methods.clone().flat_map(|method| {
-        generate_attr_names(method, &["returning"])
-    });
-
-    let expect = trait_methods.clone().flat_map(|method| {
-        generate_attr_names(method, &["expect"])
-    });
-
-    // let other_attrs = ["max_times", "times", "returning", "expect"];
-    //
-    // let mock_trait_attrs = other_attrs.iter().flat_map(|prefix| {
-    //     trait_methods.clone().flat_map(|method| {
-    //         generate_attr_names(method, &[prefix])
-    //     })
-    // });
-
-    // let expect_trait_methods = input.items.iter().filter_map(|item| {
-    //     if let TraitItem::Method(method) = item {
-    //         Some(
-    //             Ident::new(&format!("expect_times_{}", &method.sig.ident), method.sig.ident.span()),
-    //         )
-    //     } else {
-    //         None
-    //     }
-    // });
-
     let impl_methods = input.items.iter().filter_map(|item| {
         if let TraitItem::Method(method) = item {
             let method_name = &method.sig.ident;
@@ -82,14 +56,16 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
     });
 
-    // let x = mock_trait_attrs.clone();
 
-    // Generate the MockContext struct with RefCell fields for each method
+    // Generate the MockContext struct
     let mock_struct = quote! {
         struct #mock_struct_name {
-            // #(
-                // #x: std::cell::RefCell<u64>,
-            // )*
+            #(
+                #max_times: u64,
+            )*
+            #(
+                #times: std::cell::RefCell<u64>,
+            )*
         }
     };
 
