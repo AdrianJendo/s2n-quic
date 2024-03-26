@@ -4,7 +4,7 @@ use mock::seamock;
 
 #[seamock]
 pub trait Test {
-    fn a(&self, _z: bool) -> bool;
+    fn a(&self, z: bool) -> bool;
     fn b(&self) -> u8;
     fn c(&self) -> i32;
 }
@@ -12,6 +12,8 @@ pub trait Test {
 
 pub fn main() {
     let x = MockTest::new();
+
+    // x.expect_a().returning(|x| x + 1);
 
     x.a(false, false);
     x.a(false, false);

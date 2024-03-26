@@ -3,7 +3,14 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::__private::Span;
 use quote::quote;
-use syn::{parse_macro_input, ItemTrait, TraitItem, Ident, parse_quote};
+use syn::{parse_macro_input, ItemTrait, TraitItem, Ident, parse_quote, TraitItemMethod};
+
+fn generate_attr_names(method: &TraitItemMethod, prefixes: &[&str]) -> Vec<Ident> {
+    prefixes
+        .iter()
+        .map(|prefix| Ident::new(&format!("{}_{}", prefix, &method.sig.ident), method.sig.ident.span()))
+        .collect()
+}
 
 #[proc_macro_attribute]
 pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
@@ -12,26 +19,47 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
 
     let mock_struct_name = Ident::new(&format!("Mock{}", &input.ident), Span::call_site());
 
-    // Get the trait methods
-    let times_trait_attrs = input.items.iter().filter_map(|item| {
+    let trait_methods = input.items.iter().filter_map(|item| {
         if let TraitItem::Method(method) = item {
-            Some(
-                Ident::new(&format!("times_{}", &method.sig.ident), method.sig.ident.span()),
-            )
+            Some(method)
         } else {
             None
         }
     });
 
-    let expect_trait_methods = input.items.iter().filter_map(|item| {
-        if let TraitItem::Method(method) = item {
-            Some(
-                Ident::new(&format!("expect_times_{}", &method.sig.ident), method.sig.ident.span()),
-            )
-        } else {
-            None
-        }
+    let max_times = trait_methods.clone().flat_map(|method| {
+        generate_attr_names(method, &["max_times"])
     });
+
+    let times = trait_methods.clone().flat_map(|method| {
+        generate_attr_names(method, &["times"])
+    });
+
+    let returning = trait_methods.clone().flat_map(|method| {
+        generate_attr_names(method, &["returning"])
+    });
+
+    let expect = trait_methods.clone().flat_map(|method| {
+        generate_attr_names(method, &["expect"])
+    });
+
+    // let other_attrs = ["max_times", "times", "returning", "expect"];
+    //
+    // let mock_trait_attrs = other_attrs.iter().flat_map(|prefix| {
+    //     trait_methods.clone().flat_map(|method| {
+    //         generate_attr_names(method, &[prefix])
+    //     })
+    // });
+
+    // let expect_trait_methods = input.items.iter().filter_map(|item| {
+    //     if let TraitItem::Method(method) = item {
+    //         Some(
+    //             Ident::new(&format!("expect_times_{}", &method.sig.ident), method.sig.ident.span()),
+    //         )
+    //     } else {
+    //         None
+    //     }
+    // });
 
     let impl_methods = input.items.iter().filter_map(|item| {
         if let TraitItem::Method(method) = item {
@@ -54,34 +82,34 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
     });
 
-    let x = times_trait_attrs.clone();
+    // let x = mock_trait_attrs.clone();
 
     // Generate the MockContext struct with RefCell fields for each method
     let mock_struct = quote! {
         struct #mock_struct_name {
-            #(
-                #x: std::cell::RefCell<u64>,
-            )*
+            // #(
+                // #x: std::cell::RefCell<u64>,
+            // )*
         }
     };
 
-    let x = times_trait_attrs.clone();
+    // let x = mock_trait_attrs.clone();
 
     // Implement the trait for MockContext
     let mock_impl = quote! {
         impl #mock_struct_name {
             pub fn new() -> Self {
                 Self {
-                    #(
-                        #times_trait_attrs: RefCell::new(0),
-                    )*
+                    // #(
+                        // #mock_trait_attrs: RefCell::new(0),
+                    // )*
                 }
             }
-            #(
-                fn #expect_trait_methods(&self, times: u64) -> bool {
-                    *self.#x.borrow() == times
-                }
-            )*
+            // #(
+            //     fn #expect_trait_methods(&self, times: u64) -> bool {
+            //         *self.#x.borrow() == times
+            //     }
+            // )*
             #(#impl_methods)*
         }
     };
