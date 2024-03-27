@@ -4,7 +4,7 @@ use mock::seamock;
 
 // #[seamock]
 pub trait Test {
-    fn a(&self, z: bool) -> bool;
+    fn a(&self, z: bool, a: i32) -> bool;
     fn b(&self) -> u8;
     fn c(&self) -> i32;
 }
@@ -27,7 +27,7 @@ struct Tmp {
     val_returning_a: fn(z:bool) -> bool,
     val_returning_b: fn() -> u8,
     val_returning_c: fn() -> i32,
-    val_with_a: Option<WithVal<bool>>,
+    val_with_a: Option<(WithVal<bool>, WithVal<i32>)>,
 }
 
 impl Tmp {
@@ -60,7 +60,7 @@ impl Tmp {
         self
     }
 
-    fn with_a(&mut self, with: WithVal<bool>) -> &mut Self {
+    fn with_a(&mut self, with: (WithVal<bool>, WithVal<i32>)) -> &mut Self {
         self.val_with_a = Some(with);
         self
     }
@@ -122,7 +122,7 @@ pub fn main() {
 
     x
         .times_a(1)
-        .with_a(WithVal::Eq(true))
+        .with_a((WithVal::Eq(true), WithVal::Eq(2)))
         .returning_a(|x| !x)
         .returning_b(|| 4)
         .times_b(2);
