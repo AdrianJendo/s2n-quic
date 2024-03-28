@@ -24,7 +24,7 @@ struct Tmp {
     times_a: std::cell::RefCell<u64>,
     times_b: std::cell::RefCell<u64>,
     times_c: std::cell::RefCell<u64>,
-    val_returning_a: fn(z:bool) -> bool,
+    val_returning_a: fn(z:bool, a:i32) -> bool,
     val_returning_b: fn() -> u8,
     val_returning_c: fn() -> i32,
     val_with_a: Option<(WithVal<bool>, WithVal<i32>)>,
@@ -39,14 +39,14 @@ impl Tmp {
             times_a: std::cell::RefCell::new(0),
             times_b: std::cell::RefCell::new(0),
             times_c: std::cell::RefCell::new(0),
-            val_returning_a: |x| Default::default(),
+            val_returning_a: |z:bool, a:i32| Default::default(),
             val_returning_b: || Default::default(),
             val_returning_c: || Default::default(),
             val_with_a: None,
         }
     }
 
-    fn returning_a(&mut self, f: fn(bool) -> bool) -> &mut Self {
+    fn returning_a(&mut self, f: fn(z: bool, a: i32) -> bool) -> &mut Self {
         self.val_returning_a = f;
         self
     }
@@ -83,22 +83,22 @@ impl Tmp {
         *self.times_b.borrow() == val
     }
 
-    fn a(&self, z: bool) -> bool {
+    fn a(&self, z: bool, a: i32) -> bool {
         self.times_a.replace_with(|&mut old| old + 1);
         if *self.times_a.borrow() > self.max_times_a {
             panic!("a called more than {} times", self.max_times_a)
         }
-        match self.val_with_a {
-            Some(WithVal::Gt(val)) => {
-                assert!(val > z);
-            }
-            Some(WithVal::Eq(val)) => {
-                assert_eq!(val, z);
-            }
-            None => {}
-            _ => {}
-        }
-        (self.val_returning_a)(z)
+        // match self.val_with_a {
+        //     Some(WithVal::Gt(val)) => {
+        //         assert!(val > z);
+        //     }
+        //     Some(WithVal::Eq(val)) => {
+        //         assert_eq!(val, z);
+        //     }
+        //     None => {}
+        //     _ => {}
+        // }
+        (self.val_returning_a)(z, a)
     }
     fn b(&self) -> u8 {
         self.times_b.replace_with(|&mut old| old + 1);
@@ -118,16 +118,16 @@ impl Tmp {
 
 
 pub fn main() {
-    let mut x = Tmp::new();
+    let mut x = MockTest::new();
 
     x
         .times_a(1)
         .with_a((WithVal::Eq(true), WithVal::Eq(2)))
-        .returning_a(|x| !x)
+        .returning_a(|x, y| !x)
         .returning_b(|| 4)
         .times_b(2);
 
-    assert_eq!(false, x.a(true));
+    assert_eq!(false, x.a(true, 1));
     assert_eq!(4, x.b());
     assert_eq!(4, x.b());
     assert!(x.expect_times_b(2));

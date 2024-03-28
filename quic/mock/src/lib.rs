@@ -74,7 +74,7 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
                 #with_attr: None,
             });
             with_methods.push(quote! {
-                fn #with_method(&mut self, with: Option<#val_with_tuple>) -> &mut Self {
+                fn #with_method(&mut self, with: #val_with_tuple) -> &mut Self {
                     self.#with_attr = Some(with);
                     self
                 }
@@ -134,12 +134,15 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         let method_name =  &method.sig.ident;
         let method_output = &method.sig.output;
         let method_inputs = &method.sig.inputs;
-        let mut params = vec! {};
+        let mut params = vec!{};
         // For each argument, create WithVal<T> where T is the argument type
         for arg in method_inputs.iter() {
             if let syn::FnArg::Typed(pat_type) = arg {
-                let param = &pat_type.pat;
-                params.push(param);
+                let arg_name = match &*pat_type.pat {
+                    syn::Pat::Ident(ident) => ident.ident.clone(),
+                    _ => unimplemented!(), // Handle other patterns as needed
+                };
+                params.push(quote! { #arg_name, });
             }
         }
 
@@ -176,7 +179,7 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
                     panic!("{} called more than {} times", #method_name_string, self.#max_times_attr);
                 }
                 // #x
-                (self.#ret_func)()
+                (self.#ret_func)(#(#params)*)
             }
         })
     });
