@@ -2,7 +2,7 @@ extern crate mock; // not needed since Rust edition 2018
 
 use mock::seamock;
 
-// #[seamock]
+#[seamock]
 pub trait Test {
     fn a(&self, z: bool, a: i32) -> bool;
     fn b(&self) -> u8;
