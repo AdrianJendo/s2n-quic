@@ -130,6 +130,57 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         })
     });
 
+    let methods_impl = trait_methods.clone().flat_map(|method| {
+        let method_name =  &method.sig.ident;
+        let method_output = &method.sig.output;
+        let method_inputs = &method.sig.inputs;
+        let mut params = vec! {};
+        // For each argument, create WithVal<T> where T is the argument type
+        for arg in method_inputs.iter() {
+            if let syn::FnArg::Typed(pat_type) = arg {
+                let param = &pat_type.pat;
+                params.push(param);
+            }
+        }
+
+        let times_attr = Ident::new(&format!("times_{}", &method.sig.ident), method.sig.ident.span());
+        let max_times_attr = Ident::new(&format!("max_times_{}", &method.sig.ident), method.sig.ident.span());
+        let val_attr = Ident::new(&format!("val_with_{}", &method.sig.ident), method.sig.ident.span());
+        let ret_func = Ident::new(&format!("val_returning_{}", &method.sig.ident), method.sig.ident.span());
+        let method_name_string =  &method.sig.ident.to_string();
+
+        // let x = if !method_inputs.is_empty() {
+        //     Some(quote! {
+        //         match self.#val_attr {
+        //             Some(x) => {
+        //
+        //                 assert!(val > z);
+        //             }
+        //             Some(WithVal::Gte(val)) {
+        //                 assert!(val >= z);
+        //             }
+        //             Some(WithVal::Eq(val)) => {
+        //                 assert_eq!(val, z);
+        //             }
+        //             None => {}
+        //             _ => {}
+        //         }
+        //     })
+        // } else {
+        //     None
+        // };
+        Some (quote! {
+            fn #method_name(#method_inputs) #method_output {
+                self.#times_attr.replace_with(|&mut old| old + 1);
+                if *self.#times_attr.borrow() > self.#max_times_attr {
+                    panic!("{} called more than {} times", #method_name_string, self.#max_times_attr);
+                }
+                // #x
+                (self.#ret_func)()
+            }
+        })
+    });
+
     let times_clone = times.clone();
     let max_times_clone = max_times.clone();
 
@@ -174,19 +225,9 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
             #(#with_methods)*
             #(#times_methods)*
             #(#expect_times_methods)*
-            // #(
-            //     fn #expect_trait_methods(&self, times: u64) -> bool {
-            //         *self.#x.borrow() == times
-            //     }
-            // )*
-            // #(#impl_methods)*
+            #(#methods_impl)*
         }
     };
-
-    // let original = &input.ident;
-    // let trait_impl = quote! {
-    //     impl #original for #mock_struct_name { }
-    // };
 
     // Combine the generated tokens
     let expanded = quote! {
@@ -194,7 +235,6 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         #input
         #mock_struct
         #mock_impl
-        // #trait_impl
     };
 
 
