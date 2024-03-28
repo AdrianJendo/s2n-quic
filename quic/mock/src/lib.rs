@@ -37,6 +37,7 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
 
     let mut returning_attrs = vec!{};
     let mut with_attrs = vec!{};
+    let mut with_methods = vec!{};
 
     let ret = trait_methods.clone().flat_map(|method| {
         let method_output = &method.sig.output;
@@ -64,12 +65,19 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         };
         let returning_attr = Ident::new(&format!("val_returning_{}", &method.sig.ident), method.sig.ident.span());
         let with_attr = Ident::new(&format!("val_with_{}", &method.sig.ident), method.sig.ident.span());
+        let with_method = Ident::new(&format!("with_{}", &method.sig.ident), method.sig.ident.span());
         returning_attrs.push(quote! {
             #returning_attr: |#method_inputs| Default::default(),
         });
         if val_with_tuple.is_some() {
             with_attrs.push(quote! {
                 #with_attr: None,
+            });
+            with_methods.push(quote! {
+                fn #with_method(&mut self, with: Option<#val_with_tuple>) -> &mut Self {
+                    self.#with_attr = Some(with);
+                    self
+                }
             });
             quote! {
                 #returning_attr: fn(#method_inputs) #method_output,
@@ -101,32 +109,9 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         })
     });
 
-    let with_methods = input.items.iter().filter_map(|item| {
-        if let TraitItem::Method(method) = item {
-            let method_output = &method.sig.output;
-            let mut method_inputs = method.sig.inputs.clone();
-            // Remove `&self`
-            if let Some(first_arg) = method_inputs.first() {
-                if let syn::FnArg::Receiver(_) = first_arg {
-                    method_inputs = method_inputs.iter().skip(1).cloned().collect();
-                }
-            }
-            let input_method = Ident::new(&format!("returning_{}", &method.sig.ident), method.sig.ident.span());
-            let update_attr = Ident::new(&format!("val_returning_{}", &method.sig.ident), method.sig.ident.span());
-            Some (quote! {
-                fn #input_method(&mut self, f: fn(#method_inputs) #method_output) -> &mut Self {
-                    self.#update_attr = f;
-                    self
-                }
-            })
-        } else {
-            None
-        }
-    });
 
     let times_clone = times.clone();
     let max_times_clone = max_times.clone();
-
 
     // Generate the Mock struct
     let mock_struct = quote! {
@@ -166,6 +151,7 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             }
             #(#ret_methods)*
+            #(#with_methods)*
             // #(
             //     fn #expect_trait_methods(&self, times: u64) -> bool {
             //         *self.#x.borrow() == times
