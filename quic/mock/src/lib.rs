@@ -109,6 +109,26 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
         })
     });
 
+    let times_methods = trait_methods.clone().flat_map(|method| {
+        let times_method = Ident::new(&format!("times_{}", &method.sig.ident), method.sig.ident.span());
+        let update_attr = Ident::new(&format!("max_times_{}", &method.sig.ident), method.sig.ident.span());
+        Some (quote! {
+            fn #times_method(&mut self, val: u64) -> &mut Self {
+                self.#update_attr = val;
+                self
+            }
+        })
+    });
+
+    let expect_times_methods = trait_methods.clone().flat_map(|method| {
+        let times_method = Ident::new(&format!("expect_times_{}", &method.sig.ident), method.sig.ident.span());
+        let times_attr = Ident::new(&format!("times_{}", &method.sig.ident), method.sig.ident.span());
+        Some (quote! {
+            fn #times_method(&mut self, val: u64) -> bool {
+                *self.#times_attr.borrow() == val
+            }
+        })
+    });
 
     let times_clone = times.clone();
     let max_times_clone = max_times.clone();
@@ -152,6 +172,8 @@ pub fn seamock(_args: TokenStream, input: TokenStream) -> TokenStream {
             }
             #(#ret_methods)*
             #(#with_methods)*
+            #(#times_methods)*
+            #(#expect_times_methods)*
             // #(
             //     fn #expect_trait_methods(&self, times: u64) -> bool {
             //         *self.#x.borrow() == times
